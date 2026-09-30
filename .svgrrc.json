@@ -1,0 +1,25 @@
+{
+  "typescript": true,
+  "icon": true,
+  "replaceAttrValues": {
+    "#000": "currentColor",
+    "#000000": "currentColor",
+    "black": "currentColor",
+    "#9CA3AF": "currentColor"
+  },
+  "svgProps": {
+    "className": "props.className"
+  },
+  "svgoConfig": {
+    "plugins": [
+      {
+        "name": "preset-default",
+        "params": {
+          "overrides": {
+            "removeViewBox": false
+          }
+        }
+      }
+    ]
+  }
+}
