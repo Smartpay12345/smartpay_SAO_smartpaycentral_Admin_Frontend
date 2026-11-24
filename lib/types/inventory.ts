@@ -3,17 +3,20 @@ export interface Branch {
   name: string
   createdDate: string
   state: string
-  percentChange: number
-  status: 'healthy' | 'refill-required' | 'not-accessible'
+  percentChange: number | null
+  changeDirection: 'up' | 'down' | 'flat' | null
+  vsLabel: string
+  status: 'healthy' | 'refill-required' | 'not-accessible' | 'setup-pending'
+
 }
 
 export interface FuelStock {
   label: string
   fuelType: string
   tank: string
-  current: number
-  capacity: number
+  current: number | null
+  capacity: number | null
+  status: 'healthy' | 'low' | 'critical' | 'monitor' | 'pending'
   unit: 'L' | 'KG'
-  status: 'healthy' | 'low' | 'critical' | 'monitor'
   note: string
 }

@@ -37,3 +37,9 @@ export function triggerDownload(blob: Blob, filename: string): void {
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
 }
+
+export function numericValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  return Number.isFinite(n) ? n : null
+}

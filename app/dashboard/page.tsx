@@ -1,244 +1,200 @@
-// app/dashboard/page.tsx
+'use client'
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import {
   Receipt,
   PieChart,
-  MapPin,
-  Users,
-  UserCheck,
-  Fuel,
-  AlertTriangle,
 } from 'lucide-react'
-import { RedArrowUp, Total, Radius, Arr} from '@/components/icons'
+import { RedArrowUp, Total, Arr, Bag, Icon, TotalCash, BankDeposit, BankPlus, In, Giftbox, ArrowDown  } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { StatCard } from '@/components/dashboard/stat-card'
-import { ProductsChart } from '@/components/dashboard/products-chart'
 import { RevenueOverviewChart } from '@/components/dashboard/revenue-overview-chart'
 import { PeriodToggle } from '@/components/dashboard/period-toggle'
-import { TopPerformingStations } from '@/components/dashboard/top-performing-stations'
-import { RecentTransactions } from '@/components/dashboard/recent-transactions'
-import { StationsStatus } from '@/components/dashboard/stations-status'
+import { FilterDropdown } from '@/components/dashboard/filter-dropdown'
+import { StatsCardsGrid } from '@/components/dashboard/StatsCardsGrid'
+import { useAuth } from '@/lib/auth/store'
+import { toFormError } from '@/lib/auth/api'
+import { getSummary, getRevenueChart, getToday, type SummaryResponse, type ChartResponse, type TodayResponse } from '@/lib/dashboard/api'
+import { formatNaira, formatNumber, formatChange, comparisonLabel } from '@/lib/dashboard/format'
+import { PERIOD_BY_LABEL, type PeriodLabel, type StandardPeriodKey } from '@/lib/dashboard/period'
 
+const CARD_PERIODS: Record<string, StandardPeriodKey> = { 'Daily': 'today', 'This Month': 'this_month' }
 
-const stationsData = [
-  { name: 'SAO Ikeja', sales: '₦23,450,000', liters: '38,650L', txn: 892 },
-  { name: 'SAO Ibadan', sales: '₦23,450,000', liters: '38,650L', txn: 892 },
-  { name: 'SAO Abuja', sales: '₦23,450,000', liters: '38,650L', txn: 892 },
-  { name: 'SAO Osun', sales: '₦23,450,000', liters: '38,650L', txn: 892 },
-  { name: 'SAO Akure', sales: '₦23,450,000', liters: '38,650L', txn: 892 },
-]
+// for StatCard
+// for StatCard
+function cardTrend(pct: number | null, vs: string) {
+  const c = formatChange(pct)
+  const icon =
+    c.direction === 'up' ? <Arr className="h-3 w-3 text-green-600" />
+    : c.direction === 'down' ? <ArrowDown className="h-3 w-3 text-red-600" />
+    : undefined
 
-const transactionsData = [
-  { id: 'INV-2025-0004892', station: 'SAO Ikeja', amount: '₦5,000', liters: '25.00 L', status: 'completed', time: '2 mins ago' },
-  { id: 'INV-2025-0004893', station: 'SAO Ikeja', amount: '₦5,000', liters: '25.00 L', status: 'completed', time: '2 mins ago' },
-  { id: 'INV-2025-0004894', station: 'SAO Ikeja', amount: '₦5,000', liters: '25.00 L', status: 'completed', time: '2 mins ago' },
-  { id: 'INV-2025-0004895', station: 'SAO Ikeja', amount: '₦5,000', liters: '25.00 L', status: 'completed', time: '2 mins ago' },
-  { id: 'INV-2025-0004896', station: 'SAO Ikeja', amount: '₦5,000', liters: '25.00 L', status: 'completed', time: '2 mins ago' },
-]
+  return {
+    icon,
+    changeValue: c.text,
+    changeValueColor: c.direction === 'up' ? 'text-green-600' : c.direction === 'down' ? 'text-red-600' : 'text-gray-400',
+    changeLabel: vs,
+    changeLabelColor: 'text-gray-400',
+  }
+}
 
-const stationsStatusData = [
-  { name: 'SAO Ikeja', status: 'online' },
-  { name: 'SAO Lekki', status: 'online' },
-  { name: 'SAO Ibadan', status: 'online' },
-  { name: 'SAO Abuja', status: 'online' },
-  { name: 'SAO Port Harcourt', status: 'maintenance' },
-  { name: 'SAO Enugu', status: 'offline' },
-]
-const productsData = [
-  { x: 0, pms: 4000, dpk: 4200, lpg: 1800, hnk: 800 },
-  { x: 4, pms: 5200, dpk: 4600, lpg: 2400, hnk: 1600 },
-  { x: 8, pms: 7800, dpk: 6200, lpg: 3400, hnk: 2400 },
-  { x: 12, pms: 8600, dpk: 7000, lpg: 3800, hnk: 2000 },
-  { x: 16, pms: 9200, dpk: 7600, lpg: 4200, hnk: 3000 },
-  { x: 22, pms: 9800, dpk: 8200, lpg: 4600, hnk: 2800 },
-]
-
-const revenueOverviewData = [
-  { month: 'Jan', income: 8, cashback: 3 },
-  { month: 'Feb', income: 6, cashback: 4 },
-  { month: 'Mar', income: 12, cashback: 6 },
-  { month: 'Apr', income: 9, cashback: 5 },
-  { month: 'May', income: 14, cashback: 7 },
-  { month: 'Jun', income: 11, cashback: 6 },
-  { month: 'Jul', income: 18, cashback: 8 },
-  { month: 'Aug', income: 26.3, cashback: 8.39 },
-]
+// for StatsCardsGrid (isPositive: null = neutral)
+function gridTrend(pct: number | null, label: string) {
+  const c = formatChange(pct)
+  return { value: c.text, label, isPositive: c.direction === 'none' ? null : c.direction === 'up' }
+}
 
 export default function DashboardPage() {
-  return (
-    <div className="space-y-6">
-      {/* header */}
-     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-  <div>
-  <div className="flex items-center gap-3">
-     
-      <h1 className="text-lg font-semibold sm:text-xl">
-        Hey Oluwagbotemi, Welcome back!
-      </h1>
-      <Image 
-  src="/t.png" 
-  alt="Welcome" 
-  width={30} 
-  height={40} 
-  style={{ height: 'auto', width: "auto" }} 
-/>
-    </div>
-    
-    <p className="text-sm text-gray-500">
-      A summary and overview of your data information regarding SAO fuel pay
-    </p>
-  </div>
-  <div className="flex flex-wrap items-center gap-3">
-    <Link href="/dashboard/revenue-analytics" className="flex-1 sm:flex-none">
-      <Button className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">Revenue</Button>
-    </Link>
-    <PeriodToggle />
-  </div>
-</div>
+  const { admin, status } = useAuth()
+  const ready = status === 'authenticated' && !admin?.must_change_password
 
-  {/* stat card rows — was: grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 */}
-<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5">
+  const [period, setPeriod] = useState('This Month')
+  const [chartPeriod, setChartPeriod] = useState<PeriodLabel>('Month')
+  const [summary, setSummary] = useState<SummaryResponse | null>(null)
+  const [chart, setChart] = useState<ChartResponse | null>(null)
+  const [today, setToday] = useState<TodayResponse | null>(null)
+  const [errors, setErrors] = useState<{ summary?: string; chart?: string; today?: string }>({})
+  const firstName = admin?.full_name.split(' ')[0]
+  
+  console.log('auth', status, admin?.must_change_password)
+
+  useEffect(() => {
+    if (!ready) return
+    let stale = false
+    getSummary(CARD_PERIODS[period])
+      .then((r) => { if (!stale) { setSummary(r); setErrors((e) => ({ ...e, summary: undefined })) } })
+      .catch((err) => { if (!stale) setErrors((e) => ({ ...e, summary: toFormError(err).message })) })
+    return () => { stale = true }
+  }, [ready, period])
+
+  useEffect(() => {
+    if (!ready) return
+    let stale = false
+    getRevenueChart(PERIOD_BY_LABEL[chartPeriod])
+      .then((r) => { if (!stale) { setChart(r); setErrors((e) => ({ ...e, chart: undefined })) } })
+      .catch((err) => { if (!stale) setErrors((e) => ({ ...e, chart: toFormError(err).message })) })
+    return () => { stale = true }
+  }, [ready, chartPeriod])
+
+  useEffect(() => {
+    if (!ready) return
+    let stale = false
+    getToday()
+      .then((r) => { if (!stale) { setToday(r); setErrors((e) => ({ ...e, today: undefined })) } })
+      .catch((err) => { if (!stale) setErrors((e) => ({ ...e, today: toFormError(err).message })) })
+    return () => { stale = true }
+  }, [ready])
+
+  const vs = comparisonLabel(CARD_PERIODS[period]) ?? ''
+  const chartData = (chart?.points ?? [])
+    .filter((p) => new Date(p.start) <= new Date()) // cut the line at "now"
+    .map((p) => ({ month: p.label, income: p.deposit, cashback: p.cashback }))
+
+  const metrics = today && [
+    { id: 'total-deposit-today',  title: 'Total Deposit (today so far)',   value: formatNaira(today.deposit.today.amount),       icon: <BankPlus className="h-5 w-5" />,    trend: gridTrend(today.deposit.today.change_percent, 'vs yesterday') },
+    { id: 'total-deposit-month',  title: 'Total Deposit (this month)',     value: formatNaira(today.deposit.this_month.amount),  icon: <BankDeposit className="h-5 w-5" />, trend: gridTrend(today.deposit.this_month.change_percent, 'vs last month') },
+    { id: 'total-cashback-today', title: 'Total Cash back (today so far)', value: formatNaira(today.cashback.today.amount),      icon: <TotalCash className="h-5 w-5" />,   trend: gridTrend(today.cashback.today.change_percent, 'vs yesterday') },
+    { id: 'total-cashback-month', title: 'Total Cashback (this month)',    value: formatNaira(today.cashback.this_month.amount), icon: <Giftbox className="h-5 w-5" />,     trend: gridTrend(today.cashback.this_month.change_percent, 'vs last month') },
+    { id: 'number-of-sales',      title: 'Number of Sales (today)',        value: formatNumber(today.sales_today.count),         icon: <In className="h-4 w-4" />,          trend: gridTrend(today.sales_today.change_percent, 'vs yesterday') },
+  ]
+
+  return (
+  <div className="flex min-h-full flex-col gap-4 rounded-lg border bg-white p-4">
+
+      {/* header */}
+      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold sm:text-xl">
+              {firstName ? `Hey ${firstName}, Welcome back!` : 'Welcome back!'}
+            </h1>
+            <Image
+              src="/t.png"
+              alt="Welcome"
+              width={30}
+              height={40}
+              style={{ height: 'auto', width: 'auto' }}
+            />
+          </div>
+
+          <p className="text-sm text-gray-500">
+            Here is what is happening within SAO fuel
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/dashboard/revenue-analytics" className="flex-1 sm:flex-none">
+            <Button className="w-full bg-[#E50019] hover:bg-red-700 sm:w-auto"> <Bag /> Revenue</Button>
+          </Link>
+          <FilterDropdown icon={<Icon />} options={['Daily', 'This Month']} value={period} onChange={setPeriod} />
+        </div>
+      </div>
+
+      {/* stat card rows */}
+  {/* stat card rows */}
+<div className="grid shrink-0 grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 ">
         <StatCard
-          icon={<RedArrowUp/>}
+          icon={<RedArrowUp />}
           iconBgColor="bg-[#FEE2E2]"
           label="Total Sales"
-          value="₦128,750,000"
-          trend={{
-    icon: <Arr />,
-    changeValue: '+90.8%',
-    changeValueColor: 'text-green-600',
-    changeLabel: 'vs last week',
-    changeLabelColor: 'text-gray-400',
-  }}
+          value={summary ? formatNaira(summary.total_sales.amount) : '…'}
+          trend={cardTrend(summary?.total_sales.change_percent ?? null, vs)}
         />
         <StatCard
           icon={<Receipt className="h-5 w-5 text-red-500" />}
           iconBgColor="bg-red-50"
           label="Total Transactions"
-          value="4,892"
-                 trend={{
-    icon: <Arr />,
-    changeValue: '+3.5%',
-    changeValueColor: 'text-green-600',
-    changeLabel: 'vs last week',
-    changeLabelColor: 'text-gray-400',
-  }}
+          value={summary ? formatNumber(summary.transactions.count) : '…'}
+          trend={cardTrend(summary?.transactions.change_percent ?? null, vs)}
         />
         <StatCard
           icon={<Total />}
           iconBgColor="bg-[#FEE2E2]"
           label="Total Liters Sold"
-          value="210,456 L"
-                trend={{
-    icon: <Arr />,
-    changeValue: '+10.8%',
-    changeValueColor: 'text-green-600',
-    changeLabel: 'vs last week',
-    changeLabelColor: 'text-gray-400',
-  }}
+          value={summary ? `${formatNumber(summary.litres_sold.litres)} L` : '…'}
+          trend={cardTrend(summary?.litres_sold.change_percent ?? null, vs)}
         />
         <StatCard
           icon={<PieChart className="h-5 w-5 text-amber-500" />}
           iconBgColor="bg-[#FFEDD5]"
           label="Gross Profit"
-          value="₦24,560,000"
-                 trend={{
-    icon: <Arr />,
-    changeValue: '+12.5%',
-    changeValueColor: 'text-green-600',
-    changeLabel: 'vs last week',
-    changeLabelColor: 'text-gray-400',
-  }}
-        />
-        <StatCard
-          icon={<MapPin className="h-5 w-5 text-green-500" />}
-          iconBgColor="bg-[#DCFCE7]"
-          label="Active Stations"
-          value="24"
-          subtext="of 28 stations"
+          value={summary ? formatNaira(summary.gross_profit.amount) : '…'}
+          trend={cardTrend(summary?.gross_profit.change_percent ?? null, vs)}
         />
       </div>
 
-    {/* stat card rows  */}
-
-  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard
-          icon={<Users className="h-5 w-5 text-[#E50019]" />}
-          iconBgColor="bg-[#FEF2F2]"
-          label="Total Managers"
-          value="28"
-          subtext="Active Managers"
-        />
-        <StatCard
-          icon={<UserCheck className="h-5 w-5 text-[#E50019]" />}
-          iconBgColor="bg-[#FEF2F2]"
-          label="Total Staff"
-          value="186"
-          subtext="Across all stations"
-        />
-        <StatCard
-          icon={<Fuel className="h-5 w-5 text-[#E50019]" />}
-          iconBgColor="bg-[#FEF2F2]"
-          label="Total Pumps"
-          value="112"
-          subtext="Across all stations"
-        />
-        <StatCard
-          icon={<Radius />}
-          iconBgColor="bg-[#FEF2F2]"
-          label="Total Order"
-          value="56"
-          subtext="Storage tanks"
-        />
-        <StatCard
-          icon={<AlertTriangle className="h-5 w-5 text-orange-500" />}
-          iconBgColor="bg-orange-50"
-          label="Low Stock Alerts"
-          value="4"
-          valueColor="text-orange-500"
-          subtext="Require attention"
-        />
-      </div>
+     {errors.summary && (
+      <p role="alert" className="shrink-0 text-xs text-red-600">{errors.summary}</p>
+    )}
 
       {/* charts row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border bg-white p-4">
-          <div className="mb-2">
-            <h2 className="font-medium">Your Products</h2>
-            <p className="text-xs text-gray-400">A statistic of your products on each time.</p>
+  
+        <div className="flex min-h-[320px] flex-1 flex-col rounded-xl border bg-white p-4">
+      <div className="mb-2 flex shrink-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col flex-wrap items-center gap-2">
+              <h2 className="font-medium mr-3">Revenue Overview</h2>
+              <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><span className="h-1 w-4 bg-[#CB3CFF] rounded-full" /> Cashback</span>
+                <span className="flex items-center gap-1"><span className="h-1 w-4 bg-[#00C2FF] rounded-full" /> Deposit</span>
+              </div>
+            </div>
+            <PeriodToggle value={chartPeriod} onChange={setChartPeriod} />
           </div>
-          <ProductsChart data={productsData} />
-          <div className="mt-2 flex justify-center gap-4 text-xs text-gray-500">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-pink-500" /> PMS</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> DPK</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> LPG</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> HNK</span>
-          </div>
+         {errors.chart && (
+        <p role="alert" className="mb-2 shrink-0 text-xs text-red-600">{errors.chart}</p>
+      )}
+         <div className="relative min-h-[220px] flex-1">
+  <RevenueOverviewChart data={chartData} />
+</div>
         </div>
+      
 
-        <div className="rounded-xl border bg-white p-4">
- {/* Revenue Overview card header — was: flex-col gap-3 sm:flex-row sm:items-center sm:justify-between */}
-<div className="mb-2 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-  <div className="flex flex-wrap items-center gap-4">
-    <h2 className="font-medium">Revenue Overview</h2>
-    <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Cashback</span>
-      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> Income</span>
+       <div className="shrink-0">
+      {errors.today && (
+        <p role="alert" className="mb-2 text-xs text-red-600">{errors.today}</p>
+      )}
+      {metrics && <StatsCardsGrid metrics={metrics} />}
     </div>
-  </div>
-  <PeriodToggle />
-</div>
-  <RevenueOverviewChart data={revenueOverviewData} />
-</div>
-      </div>
-
-      {/* bottom row: stations, transactions, status — placeholders for now */}
-<div className="grid grid-cols-1 gap-4 lg:grid-cols-2  xl:grid-cols-3 ">
-  <TopPerformingStations stations={stationsData} />
-  <RecentTransactions transactions={transactionsData} />
-  <StationsStatus stations={stationsStatusData} />
-</div>
     </div>
   )
 }

@@ -29,7 +29,7 @@ export async function exportData<T>(
       }
       case 'pdf': {
         const { downloadPdf } = await import('./pdf')
-        downloadPdf(filename, options.data, options.columns, options.title)
+       await downloadPdf(filename, options.data, options.columns, options.title)
         break
       }
       default: {

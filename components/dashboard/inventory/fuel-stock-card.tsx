@@ -6,6 +6,7 @@ const statusColor = {
   low: 'bg-[#1E5EAC]',
   critical: 'bg-[#BA1A1A]',
   monitor: 'bg-[#916F6C]',
+  pending: 'bg-gray-300'
 }
 
 const badgeColor = {
@@ -13,10 +14,12 @@ const badgeColor = {
   low: 'bg-[#A8C8FF33] text-[#E6BDB94D]',
   critical: 'bg-red-50 text-red-600',
   monitor: 'bg-gray-100 text-gray-500',
+  pending: 'bg-gray-100 text-gray-500'
 }
 
 export function FuelStockCard({ stock, icon }: { stock: FuelStock; icon?: React.ReactNode }) {
-  const percent = Math.round((stock.current / stock.capacity) * 100)
+  const percent = stock.current != null && stock.capacity ? Math.round((stock.current / stock.capacity) * 100) : 0
+
   const isCritical = stock.status === 'critical'
 
   return (
@@ -34,9 +37,9 @@ export function FuelStockCard({ stock, icon }: { stock: FuelStock; icon?: React.
 
       <div className="mb-1 flex items-end justify-between">
         <p className={cn('text-lg font-semibold', isCritical && 'text-red-600')}>
-          {stock.current.toLocaleString()} {stock.unit}
+        {stock.current == null ? '—' : stock.current.toLocaleString()} {stock.unit}
         </p>
-        <p className="text-xs text-gray-400">of {stock.capacity.toLocaleString()}{stock.unit}</p>
+        <p className="text-xs text-gray-400">of {stock.capacity != null && `of ${stock.capacity.toLocaleString()}${stock.unit}`}</p>
       </div>
 
       <div className="h-1.5 w-full rounded-full bg-gray-100">

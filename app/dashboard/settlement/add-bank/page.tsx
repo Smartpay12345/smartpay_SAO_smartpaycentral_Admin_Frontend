@@ -60,21 +60,22 @@ async function onSubmit(values: BankAccountFormValues) {
 }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6 bg-white border border-gray-200 rounded-lg p-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Add Bank Account</h1>
           <p className="text-sm text-gray-500">Link a new bank account to process withdrawals.</p>
         </div>
         <Link href="/dashboard/settlement">
-          <Button variant="outline">
+          <Button variant="secondary">
             <ArrowLeft className="mr-2 h-4 w-4 text-[#CD0102]" />
             Back
           </Button>
         </Link>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 rounded-xl border bg-white p-6">
+  
+          <form onSubmit={handleSubmit(onSubmit)} className=" mx-auto w-full max-w-xl space-y-5 rounded-xl border bg-white p-6">
         <div className="flex gap-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
@@ -159,6 +160,10 @@ async function onSubmit(values: BankAccountFormValues) {
           {isSubmitting ? 'Adding...' : 'Add Bank Account →'}
         </Button>
       </form>
+
+      
+
+    
     </div>
   )
 }

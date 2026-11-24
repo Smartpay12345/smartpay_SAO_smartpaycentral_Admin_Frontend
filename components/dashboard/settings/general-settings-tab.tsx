@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { generalSettingsSchema, type GeneralSettingsValues } from '@/lib/validations/settings'
-import { AddRegionModal } from './add-region-modal'
+// import { AddRegionModal } from './add-region-modal'
 
 const timezones = ['West Africa Time (WAT) – UTC+01:00', 'GMT – UTC+00:00']
 const currencies = ['Nigerian Naira (₦)', 'US Dollar ($)']
@@ -127,12 +127,12 @@ export function GeneralSettingsTab({ regions, onRegionsChange, formId, onDirtyCh
         </div>
       </div>
 
-      <AddRegionModal
+      {/* <AddRegionModal
         open={addRegionOpen}
         onOpenChange={setAddRegionOpen}
         existingRegions={regions}
         onAdded={(region) => { onRegionsChange([...regions, region]); onDirtyChange(true) }}
-      />
+      /> */}
     </div>
   )
 }

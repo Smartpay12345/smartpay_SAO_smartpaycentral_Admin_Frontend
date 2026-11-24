@@ -4,21 +4,32 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { X, LogOut } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Setting, Activity, Transaction, Bell, House, Person, Tanker, Sales, Inventory } from '@/components/icons'
 import { SidebarNavItem } from './sidebar-nav-item'
-import { Button } from '@/components/ui/button'
 import { useSidebar } from './sidebar-context'
-import { LogoutModal } from '@/app/dashboard/logout-modal'
+import { AccountOverviewModal } from './account-overview-modal'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
+// TODO: replace with real auth/user data once the backend endpoint exists.
+// Shape must match AccountUser in account-overview-modal.tsx exactly.
+const MOCK_USER = {
+  name: 'Oluwagbotemi O.',
+  role: 'Account Manager',
+  email: 'oluwagbotemi@saofuel.com',
+  phone: '+234 801 234 5678',
+  avatarUrl: undefined, // leave undefined to exercise the AvatarFallback path
+}
 
 const mainMenu = [
   { href: '/dashboard', label: 'Dashboard', icon: House },
   { href: '/dashboard/sales-overview', label: 'Sales Overview', icon: Sales },
-  { href: '/dashboard/transactions', label: 'Transactions', icon: Transaction },
   { href: '/dashboard/inventory', label: 'Inventory', icon: Inventory },
   { href: '/dashboard/managers', label: 'Managers', icon: Person },
   { href: '/dashboard/manage-orders', label: 'Manage Orders', icon: Tanker },
+  { href: '/dashboard/transactions', label: 'Transactions', icon: Transaction },
+  { href: '/dashboard/app-users', label: 'App Stats', icon: Transaction },
 ]
 
 const systemMenu = [
@@ -26,7 +37,6 @@ const systemMenu = [
   { href: '/dashboard/activity-logs', label: 'Activity Logs', icon: Activity },
   { href: '/dashboard/settings', label: 'Settings', icon: Setting },
 ]
-
 
 function getActiveHref(pathname: string, allHrefs: string[]): string | null {
   const matches = allHrefs.filter(
@@ -39,17 +49,19 @@ function getActiveHref(pathname: string, allHrefs: string[]): string | null {
 }
 
 export function Sidebar() {
-  const [logoutOpen, setLogoutOpen] = useState(false)
   const { open, setOpen, openWithHover, closeWithHover } = useSidebar()
   const pathname = usePathname()
   const asideRef = useRef<HTMLElement>(null)
   const handlerRef = useRef<((e: MouseEvent) => void) | null>(null)
+  const [accountModalOpen, setAccountModalOpen] = useState(false)
+
+  // Mocked until auth/user data is wired up — see MOCK_USER above.
+  const user = MOCK_USER
 
   const allHrefs = [...mainMenu, ...systemMenu].map((item) => item.href)
   const activeHref = getActiveHref(pathname, allHrefs)
 
- 
-useEffect(() => {
+  useEffect(() => {
     if (!open) return
 
     const timer = setTimeout(() => {
@@ -86,49 +98,76 @@ useEffect(() => {
         onMouseEnter={openWithHover}
         onMouseLeave={closeWithHover}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col border-r bg-background transition-transform lg:translate-x-0 ',
+          // no h-screen: inset-y-0 already fills the visible height, and 100vh is what cut the footer off
+          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-hidden bg-background transition-transform lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex items-center justify-between p-4 lg:justify-start lg:gap-2">
-          <div className="flex items-center gap-2">
+        {/* decorative circle, clipped by the aside's overflow-hidden */}
+        <div className="pointer-events-none absolute -bottom-16 -left-16 h-38 w-38 rounded-full bg-[#E5001980]/30" />
+
+        {/* Header: fixed */}
+        <div className="relative flex shrink-0 items-center justify-between p-4 lg:justify-start lg:gap-2">
+          <div className="flex items-center gap-4">
             <Image src="/logo.svg" alt="SAO" width={28} height={28} />
-            <span className="font-semibold">Sao fuel Pay</span>
+            <span className="font-semibold text-white">Sao fuel Pay</span>
           </div>
           <button onClick={() => setOpen(false)} className="lg:hidden">
             <X className="h-5 w-5 text-gray-400" />
           </button>
         </div>
 
-        {/* main menu */}
-        <nav className="flex flex-col gap-1 p-3">
-          <p className="px-3 pb-1 text-xs font-medium uppercase text-gray-400">
-            Main Menu
-          </p>
-          {mainMenu.map((item) => (
-            <SidebarNavItem key={item.href} {...item} isActive={item.href === activeHref} />
-          ))}
-        </nav>
+        {/* Body: the only part that scrolls, scrollbar hidden */}
+        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="flex flex-col gap-1 p-3">
+            <p className="px-3 pb-1 text-xs font-medium uppercase text-gray-400">
+              Main Menu
+            </p>
+            {mainMenu.map((item) => (
+              <SidebarNavItem key={item.href} {...item} isActive={item.href === activeHref} />
+            ))}
+          </nav>
 
-        {/* system menu */}
-        <nav className="flex flex-col gap-1 border-t border-primary p-3">
-          <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase text-gray-400">
-            System
-          </p>
-          {systemMenu.map((item) => (
-            <SidebarNavItem key={item.href} {...item} isActive={item.href === activeHref} />
-          ))}
-        </nav>
-
-        {/* footer */}
-        <div className="mt-auto space-y-3 border-t p-4 text-center">
-          <p className="text-xs text-gray-400">Powered by Smartpay studio</p>
-         <Button variant="default" className="w-full" onClick={() => setLogoutOpen(true)}>
-  <LogOut className="mr-2 h-4 w-4" />
-  Log Out
-</Button>
+          <nav className="flex flex-col gap-1 p-3">
+            <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase text-gray-400">
+              System
+            </p>
+            {systemMenu.map((item) => (
+              <SidebarNavItem key={item.href} {...item} isActive={item.href === activeHref} />
+            ))}
+          </nav>
         </div>
-        <LogoutModal open={logoutOpen} onOpenChange={setLogoutOpen} />
+
+        {/* Footer: fixed */}
+        <div className="relative shrink-0 space-y-3 p-4 text-center">
+          <p className="text-xs text-gray-400">Powered by Smartpay studio</p>
+
+          <div className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2">
+            <button
+              onClick={() => setAccountModalOpen(true)}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 text-left text-white">
+                <p className="truncate text-sm font-medium">{user.name}</p>
+                <p className="truncate text-xs text-gray-400">{user.role}</p>
+              </div>
+            </button>
+
+            <button onClick={() => setAccountModalOpen(true)} aria-label="Open account">
+              <ChevronDown className="h-4 w-4 text-[#ED2024]" />
+            </button>
+          </div>
+
+          <AccountOverviewModal
+            open={accountModalOpen}
+            onOpenChange={setAccountModalOpen}
+            user={user}
+          />
+        </div>
       </aside>
     </>
   )

@@ -1,4 +1,3 @@
-
 'use client'
 
 import { ChevronDown } from 'lucide-react'
@@ -22,7 +21,7 @@ export function FilterDropdown({ options, value, onChange, icon }: FilterDropdow
 <DropdownMenu>
   <DropdownMenuTrigger
     render={
-      <Button variant="outline" className="gap-2">
+      <Button variant="destructive" className="gap-2">
         {icon}
         {value}
         <ChevronDown className="h-4 w-4" />
@@ -31,9 +30,12 @@ export function FilterDropdown({ options, value, onChange, icon }: FilterDropdow
   />
   <DropdownMenuContent align="end">
     {options.map((opt) => (
-      <DropdownMenuItem key={opt} onSelect={() => onChange(opt)}>
-        {opt}
-      </DropdownMenuItem>
+      // <DropdownMenuItem key={opt} onSelect={() => onChange(opt)}>
+      //   {opt}
+      // </DropdownMenuItem>
+      <DropdownMenuItem key={opt} onClick={() => onChange(opt)}>
+  {opt}
+</DropdownMenuItem>
     ))}
   </DropdownMenuContent>
 </DropdownMenu>

@@ -15,11 +15,11 @@ interface SalesByProductTypeProps {
 }
 
 export function SalesByProductType({ data }: SalesByProductTypeProps) {
-  const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0)
-  const dominant = data.length > 0
-    ? data.reduce((max, d) => (d.value > max.value ? d : max), data[0])
-    : null
-  const dominantPct = dominant && total > 0 ? Math.round((dominant.value / total) * 100) : 0
+const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0)
+const dominant = total > 0
+  ? data.reduce((max, d) => (d.value > max.value ? d : max), data[0])
+  : null
+const dominantPct = dominant ? Math.round((dominant.value / total) * 100) : 0
 
   return (
     <div className="rounded-xl border bg-white p-4">

@@ -5,6 +5,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeScript } from "@/components/theme-script";
+import { AuthBootstrap } from "@/components/auth/auth-bootstrap";
+import { QueryProvider } from "@/components/providers/query-provider";
 
 const rethinkSans = Rethink_Sans({
   variable: "--font-rethink-sans",
@@ -17,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaoFuel",
+  title: "SmartSao",
   description: "Management system for fuel operations and analytics",
 };
 
@@ -33,10 +35,13 @@ export default function RootLayout({
       className={`${rethinkSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body>
+        <AuthBootstrap />
         <ThemeScript />
         <ThemeProvider>
+          <QueryProvider>
           {children}
           <Toaster />
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

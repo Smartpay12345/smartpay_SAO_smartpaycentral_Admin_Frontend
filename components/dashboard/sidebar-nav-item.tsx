@@ -19,7 +19,7 @@ export function SidebarNavItem({ href, label, icon: Icon, badge, isActive }: Sid
       href={href}
       className={cn(
         'flex items-center gap-4 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-        isActive ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-100'
+        isActive ? 'bg-[#FEF2F2] text-primary' : 'text-[#4B5563] hover:bg-gray-100'
       )}
     >
       <span className="flex items-center gap-3">

@@ -31,7 +31,7 @@ export function ManagerTable({ managers, onLearnMore }: ManagerTableProps) {
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={m.avatarUrl} alt={m.name} />
-                      <AvatarFallback>{m.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{m.name?.charAt(0) ?? '?'}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium text-foreground">{m.name}</p>

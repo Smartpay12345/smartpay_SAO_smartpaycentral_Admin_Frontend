@@ -6,6 +6,7 @@ import { FuelStockCard } from './fuel-stock-card'
 import { MiniCalendar } from './mini-calendar'
 import type { FuelStock } from '@/lib/types/inventory'
 import { Diesel, Liter, Pump, Cooking } from '@/components/icons'
+import { AsyncPanel, type PanelState } from '@/lib/dashboard/async-panel'
 
 interface StationDetailData {
   name: string
@@ -17,7 +18,10 @@ interface StationDetailData {
 }
 
 interface StationDetailModalProps {
-  station: StationDetailData | null
+  state: PanelState<StationDetailData>
+  date: string // the day selected on the calendar (YYYY-MM-DD)
+  maxDate: string // latest pickable day (today, Lagos time)
+  onDateChange: (date: string) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   onManageStation: () => void
@@ -26,22 +30,24 @@ interface StationDetailModalProps {
 }
 
 const FUEL_ICONS: Record<FuelStock['fuelType'], React.ReactNode> = {
-  ago: <Diesel className='h-4 w-4' />,
-  dpk: <Liter className='h-4 w-4 text-[#006926]' />,
-  pms: <Pump className='h-4 w-4' />,
-  lpg: <Cooking className='h-4 w-4' />,
+  ago: <Diesel className="h-4 w-4" />,
+  dpk: <Liter className="h-4 w-4 text-[#006926]" />,
+  pms: <Pump className="h-4 w-4" />,
+  lpg: <Cooking className="h-4 w-4" />,
 }
 
 export function StationDetailModal({
-  station,
+  state,
+  date,
+  maxDate,
+  onDateChange,
   open,
   onOpenChange,
   onManageStation,
   onCheckOrder,
   onViewOverview,
 }: StationDetailModalProps) {
-  if (!station) return null
-  const s = station
+  const s = state.data
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,11 +61,16 @@ export function StationDetailModal({
           </div>
 
           <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
-            <div className="space-y-4">
-              {s.fuelStocks.map((f) => (
-                <FuelStockCard key={f.label} stock={f} icon={FUEL_ICONS[f.fuelType]} />
-              ))}
-            </div>
+            {/* left: stock cards (also shows the error panel if the request fails) */}
+            <AsyncPanel state={state} height="h-80">
+              {(d) => (
+                <div className="space-y-4">
+                  {d.fuelStocks.map((f) => (
+                    <FuelStockCard key={f.label} stock={f} icon={FUEL_ICONS[f.fuelType]} />
+                  ))}
+                </div>
+              )}
+            </AsyncPanel>
 
             <div className="space-y-4">
               <div className="flex gap-3">
@@ -69,43 +80,46 @@ export function StationDetailModal({
                 <Button onClick={onCheckOrder} className="flex-1">Check Order</Button>
               </div>
 
-            <div>
-  <p className="mb-2 text-sm font-medium">Today</p>
-  
-  
-  <div className="relative flex items-center justify-between gap-3 p-4 pl-6">
- 
-    <div className="absolute bottom-3 left-3 top-3 w-1.5 rounded-full bg-red-500 p-0 -ml-2" />
+              <div>
+                <p className="mb-2 text-sm font-medium">{date === maxDate ? 'Today' : 'Selected day'}</p>
 
-    {/* Date */}
-    <div>
-      <p className="text-4xl text-[#EA6B6B] font-bold leading-none">{s.todayDate.split(' ')[0]}</p>
-      <p className="text-xs font-semibold text-[#EA6B6B]">{s.todayDate.split(' ')[1]}</p>
-    </div>
+                {s ? (
+                  <>
+                    <div className="relative flex items-center justify-between gap-3 p-4 pl-6">
+                      <div className="absolute bottom-3 left-3 top-3 w-1.5 rounded-full bg-red-500 p-0 -ml-2" />
 
-    {/* Sales Info */}
-    <div className="ml-2">
-      <p className="text-xs font-medium text-red-500">Total Sales</p>
-      <p className="font-semibold">{s.totalSales}</p>
-      <p className="text-xs font-bold">
-        No. of sales : <span className="font-semibold text-primary">{s.noOfSales}</span>
-      </p>
-    </div>
+                      {/* Date */}
+                      <div>
+                        <p className="text-4xl text-[#EA6B6B] font-bold leading-none">{s.todayDate.split(' ')[0]}</p>
+                        <p className="text-xs font-semibold text-[#EA6B6B]">{s.todayDate.split(' ')[1]}</p>
+                      </div>
 
-    {/* Arrow Button */}
-    <button onClick={onViewOverview} className="text-gray-400">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    </button>
-  </div>
+                      {/* Sales Info */}
+                      <div className="ml-2">
+                        <p className="text-xs font-medium text-red-500">Total Sales</p>
+                        <p className="font-semibold">{s.totalSales}</p>
+                        <p className="text-xs font-bold">
+                          No. of sales : <span className="font-semibold text-primary">{s.noOfSales}</span>
+                        </p>
+                      </div>
 
-  <p className="mt-2 text-center text-xs text-green-600">↗ ₦{s.monthTotal} This Month So Far</p>
-</div>
+                      {/* Arrow Button */}
+                      <button onClick={onViewOverview} className="text-gray-400">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        </svg>
+                      </button>
+                    </div>
 
+                    <p className="mt-2 text-center text-xs text-green-600">↗ ₦{s.monthTotal} This Month So Far</p>
+                  </>
+                ) : (
+                  // while loading; on error the left panel already shows the message
+                  !state.error && <div className="h-24 animate-pulse rounded-xl bg-gray-100" />
+                )}
+              </div>
 
-
-              <MiniCalendar initialMonth={7} initialYear={2026} highlightDay={24} />
+              <MiniCalendar selectedDate={date} maxDate={maxDate} onSelectDate={onDateChange} />
             </div>
           </div>
 

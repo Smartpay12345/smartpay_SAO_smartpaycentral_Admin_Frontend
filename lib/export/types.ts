@@ -5,6 +5,10 @@ export interface ExportColumn<T> {
   key: string // supports dot-paths, e.g. 'station.name'
   header: string
   formatter?: (value: unknown, row: T) => string
+  /** CSV and Excel get the raw number (so it can be summed); PDF still uses `formatter` */
+  numeric?: boolean
+  /** Excel display format for numeric columns, e.g. '#,##0.00' */
+  numFmt?: string
 }
 
 export interface ExportOptions<T> {

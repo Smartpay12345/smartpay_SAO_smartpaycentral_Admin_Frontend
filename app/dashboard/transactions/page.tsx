@@ -1,257 +1,226 @@
+// app/dashboard/transactions/overview/page.tsx
 'use client'
 
-
 import { useState } from 'react'
-import { Search } from 'lucide-react'
 import { FilterDropdown } from '@/components/dashboard/filter-dropdown'
-import { Pagination } from '@/components/dashboard/pagination'
+import { DateNav } from '@/components/dashboard/transactions/date-nav'
+import { TransactionDetailPanel } from '@/components/dashboard/transactions/transaction-detail-panel'
+import { STATUS_STYLE } from '@/lib/data/txn-status-colors'
+import { AsyncPanel } from '@/lib/dashboard/async-panel'
+import { useEndpoint, useDebouncedValue, useInfiniteEndpoint } from '@/hooks/use-endpoint'
+import { transactionsApi } from '@/lib/dashboard/transactions-api'
+import { formatCurrencyFull } from '@/lib/utils/format'
+import { formatDayLabel, lagosToday, shiftDay } from '@/lib/utils/date'
+import { Search } from 'lucide-react'
 import { ExportButton } from '@/components/shared/export-button'
-import { ProductStatCard } from '@/components/dashboard/transactions/product-stat-card'
-import { TransactionTable, type Transaction } from '@/components/dashboard/transactions/transaction-table'
-import { TransactionDetailModal } from '@/components/dashboard/transactions/transaction-detail-modal'
-import { StationTransactionTable } from '@/components/dashboard/transactions/station-transaction-table'
-import { BestSellingStation } from '@/components/dashboard/transactions/best-selling-station'
 import type { ExportColumn } from '@/lib/export'
-import { StationDetailModal } from '@/components/dashboard/transactions/station-detail-modal'
-import { Fire, Iconpetrol, RedD, Tank, Dollar, Sales, Icon } from '@/components/icons'
-import { TransactionSummaryCard } from '@/components/dashboard/transactions/transaction-summary-card'
+import type { PeriodFilter } from '@/lib/dashboard/types'
+import { cn } from '@/lib/utils'
+import { toTxn, toDepositTxn } from '@/lib/dashboard/transactions-mappers'
+import type { TxnStatus } from '@/lib/types/transaction-overview'
 
-interface StationRow {
-  stationId: string
-  location: string
-  totalSales: string
-  amount: string
-  noOfSales: number
+interface ExportRow {
   date: string
+  category: string
+  reference: string
+  status: string
 }
 
-
-const transactions: Transaction[] = [
-  { id: 'INV-2025-0045', date: 'Oct 24, 2025', time: '14:32 PM', station: 'SAO Ikeja', product: 'PMS (Petrol)', productDetail: '25.00 L @ ₦650', amount: '16,250.00', status: 'completed' },
-  { id: 'INV-2025-0047', date: 'Oct 24, 2025', time: '15:45 PM', station: 'SAO Abuja', product: 'PMS (Petrol)', productDetail: '50.00 L @ ₦650', amount: '32,500.00', status: 'pending' },
-  { id: 'INV-2025-0047', date: 'Oct 24, 2025', time: '15:45 PM', station: 'SAO Abuja', product: 'PMS (Petrol)', productDetail: '50.00 L @ ₦650', amount: '32,500.00', status: 'pending' },
-  { id: 'INV-2025-0047', date: 'Oct 24, 2025', time: '15:45 PM', station: 'SAO Abuja', product: 'PMS (Petrol)', productDetail: '50.00 L @ ₦650', amount: '32,500.00', status: 'pending' },
-]
-
-const stationRows = Array.from({ length: 8 }, () => ({
-  stationId: 'SAO - 21182',
-  location: 'Idi Ape, Ibadan',
-  totalSales: 'Total Sales',
-  amount: '5,323,321.00',
-  noOfSales: 500,
-  date: 'Today',
-}))
-
-const bestSelling = [
-  { name: 'Lekki, Lagos', amount: '300 million plus', percent: 100 },
-  { name: 'Epe, Lagos', amount: '231 million plus', percent: 77 },
-  { name: 'Oshodi, Lagos', amount: '121 million plus', percent: 40 },
-  { name: 'Idi Ape, Ibadan', amount: '121 million plus', percent: 40 },
-  { name: 'Akobo, Ibadan', amount: '121 million plus', percent: 40 },
-]
-
-const exportColumns: ExportColumn<Transaction>[] = [
-  { key: 'id', header: 'Transaction ID' },
+const exportColumns: ExportColumn<ExportRow>[] = [
   { key: 'date', header: 'Date' },
-  { key: 'station', header: 'Station' },
-  { key: 'product', header: 'Product' },
-  { key: 'amount', header: 'Amount', formatter: (value) => `₦${value}` },
-  {
-    key: 'status',
-    header: 'Status',
-    formatter: (value) => (typeof value === 'string' ? value.charAt(0).toUpperCase() + value.slice(1) : String(value)),
-  },
+  { key: 'category', header: 'Category' },
+  { key: 'reference', header: 'Reference' },
+  { key: 'status', header: 'Status' },
 ]
 
-const stationDetailData = {
-  id: 'SAO - 21182',
-  location: 'Ibadan Oyo State.',
-  managerName: 'Oluwagbotemi Babatunde',
-  products: [
-    { label: 'Petrol (PMS)', sold: '1500 sold', capacity: '55,000 Liters', percent: 3 },
-    { label: 'Kerosene (HNK)', sold: '1500 sold', capacity: '55,000 Liters', percent: 3 },
-    { label: 'Diesel (DPK)', sold: '50,000 sold', capacity: '55,000 Liters', percent: 91 },
-    { label: 'Natural Cooking Gas (NPG)', sold: '45,600 sold', capacity: '55,000 Kg', percent: 83 },
-  ],
-  pumps: [
-    { name: 'Pump 1', noOfSales: 321, initial: '55,000', remaining: '25,000', percent: 55 },
-    { name: 'Pump 1', noOfSales: 321, initial: '55,000', remaining: '25,000', percent: 55 },
-  ],
-}
+const MAX_EXPORT_PAGES = 50 // 50 pages x 100 rows = 5,000 rows, a safety limit
 
-export default function TransactionsPage() {
-  const [tab, setTab] = useState<'general' | 'station'>('general')
-  const [selected, setSelected] = useState<Transaction | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [period, setPeriod] = useState('This Month')
-  const [typeFilter, setTypeFilter] = useState('All Transactions')
+const TABS = [
+  { key: 'purchase', label: 'Purchase', totalLabel: 'Total Purchased' },
+  { key: 'deposit', label: 'Deposit', totalLabel: 'Total Deposit' },
+  { key: 'bill', label: 'Explore/ Bill Payment', totalLabel: 'Total Bill payment' },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
+
+interface Row { id: string; ref: string; status: TxnStatus }
+
+const STATUS_KEY: Record<string, string | undefined> = { 'All Status': undefined, Completed: 'completed', Pending: 'pending', Failed: 'failed' }
+
+export default function TransactionsOverviewPage() {
+  const [tab, setTab] = useState<TabKey>('purchase')
+  const [searchText, setSearchText] = useState('')
+  const debounced = useDebouncedValue(searchText.trim())
   const [statusFilter, setStatusFilter] = useState('All Status')
-  const [dateFilter, setDateFilter] = useState('Last 30 Days')
-  const [page, setPage] = useState(1)
-  const [stationModalOpen, setStationModalOpen] = useState(false)
-  const [selectedStation, setSelectedStation] = useState<StationRow | null>(null)
+  const [day, setDay] = useState(lagosToday) // the day on the date nav
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  const status = STATUS_KEY[statusFilter]
 
-  function handleRowClick(txn: Transaction) {
-    setSelected(txn)
-    setModalOpen(true)
+  const period: PeriodFilter = { period: 'custom', start_date: day, end_date: day }
+  // purchases and bills reject searches shorter than 4 characters
+  const search = tab === 'deposit' || debounced.length >= 4 ? debounced : ''
+
+  const overview = useEndpoint('transactions-overview', period, () => transactionsApi.overview(period))
+  const o = overview.data
+  const total = o ? { purchase: o.purchase.amount, deposit: o.deposit.amount, bill: o.bill_payment.amount }[tab] : null
+
+  const fetchRows = (page: number) =>
+    tab === 'deposit'
+      ? transactionsApi.deposits({ ...period, search, page, page_size: 100 }).then((r) => ({
+        has_more: r.pagination.page < r.pagination.total_pages,
+        rows: r.deposits.map((d): Row => ({ id: d.id, ref: d.reference, status: d.status })),
+      }))
+      : transactionsApi
+        .list({ ...period, category: tab === 'bill' ? 'bill' : 'fuel', status, search, page, page_size: 100 })
+        .then((r) => ({
+          has_more: r.pagination.page < r.pagination.total_pages,
+          rows: r.transactions.map((t): Row => ({ id: t.id, ref: t.transaction_id, status: t.status })),
+        }))
+
+  const list = useInfiniteEndpoint('transactions-rows', { tab, day, search, status }, fetchRows)
+
+  // deposits are always completed, so Pending / Failed shows none
+  const rows = (list.pages?.flatMap((p) => p.rows) ?? []).filter((r) => tab !== 'deposit' || !status || r.status === status)
+  const selected = rows.find((r) => r.id === selectedId) ?? rows[0]
+
+  const txnDetail = useEndpoint('transaction-detail', { id: selected?.id }, () => transactionsApi.detail(selected!.id),
+    { enabled: tab !== 'deposit' && !!selected, keepPrevious: false })
+  const depositDetail = useEndpoint('deposit-detail', { id: selected?.id }, () => transactionsApi.depositDetail(selected!.id),
+    { enabled: tab === 'deposit' && !!selected, keepPrevious: false })
+
+  const active = tab === 'deposit' ? depositDetail : txnDetail
+  const panelState = {
+    data: tab === 'deposit'
+      ? depositDetail.data && toDepositTxn(depositDetail.data)
+      : txnDetail.data && toTxn(txnDetail.data),
+    error: active.error,
+    retry: active.retry,
+  }
+
+  function handleTabChange(key: TabKey) {
+    setTab(key)
+    setSelectedId(null)
+  }
+
+  const currentTabConfig = TABS.find((t) => t.key === tab)!
+
+  async function loadExportRows(): Promise<ExportRow[]> {
+    const all: Row[] = []
+    for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
+      const r = await fetchRows(page)
+      all.push(...r.rows)
+      if (!r.has_more) break
+    }
+    return all
+      .filter((r) => tab !== 'deposit' || !status || r.status === status) // same rule as the list
+      .map((r) => ({
+        date: day,
+        category: currentTabConfig.label,
+        reference: r.ref,
+        status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+      }))
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-4 bg-white p-6 border rounded-xl">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[#111827]">General Transactions Overview</h1>
+          <h1 className="text-xl font-semibold">General Transactions Overview</h1>
           <p className="text-sm text-gray-500">View and manage all fuel and service transactions across stations.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <FilterDropdown icon={<Icon />} options={['This Month', 'This Week', 'This Year']} value={period} onChange={setPeriod} />
-          <ExportButton data={transactions} columns={exportColumns} filename="transactions" title="Transaction Report" />
+        <div className="flex items-center gap-3">
+          <DateNav
+            label={formatDayLabel(day)}
+            onPrev={() => setDay(shiftDay(day, -1))}
+            onNext={() => setDay(shiftDay(day, 1))}
+            nextDisabled={day >= lagosToday()}
+          />
+
+
+
+          <ExportButton
+            data={loadExportRows}
+            columns={exportColumns}
+            filename={`${tab}-transactions-${day}`}
+            title={`${currentTabConfig.label} Transactions - ${day}`}
+            disabled={rows.length === 0}
+          />
         </div>
       </div>
 
-      <div className="flex gap-6 overflow-x-auto border-b text-sm">
-        <button
-          onClick={() => setTab('general')}
-          className={tab === 'general' ? 'shrink-0 whitespace-nowrap border-b-2 border-[#1A42E2] pb-2 font-medium text-[#1A42E2]' : 'shrink-0 whitespace-nowrap pb-2 text-gray-400'}
-        >
-          General Transactions
-        </button>
-        <button
-          onClick={() => setTab('station')}
-          className={tab === 'station' ? 'shrink-0 whitespace-nowrap border-b-2 border-[#1A42E2] pb-2 font-medium text-[#1A42E2]' : 'shrink-0 whitespace-nowrap pb-2 text-gray-400'}
-        >
-          Station Transactions
-        </button>
+      <div className="flex flex-col gap-2 border-b lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex gap-6 text-sm">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => handleTabChange(t.key)}
+              className={tab === t.key ? 'border-b-2 border-primary pb-2 font-medium text-primary' : 'pb-2 text-gray-400'}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {currentTabConfig.totalLabel} <span className="font-semibold text-gray-900">{total === null ? '-' : formatCurrencyFull(total)}</span>
       </div>
 
-      {tab === 'general' ? (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-            <ProductStatCard icon={<Iconpetrol />} iconBg="bg-red-50" name="PMS" subtitle="Petrol" amount="₦28,996,08" quantity="878" unit="Liters" />
-            <ProductStatCard icon={<RedD />} iconBg="bg-blue-50" name="DPK" subtitle="Diesel" amount="₦12,996,08" quantity="302" unit="Liters" />
-            <ProductStatCard icon={<Fire />} iconBg="bg-blue-50" name="LPG" subtitle="Natural Cooking Gas" amount="₦38,996,08" quantity="2975" unit="Kilograms" />
-            <ProductStatCard icon={<Tank />} iconBg="bg-blue-50" name="HNK" subtitle="Kerosene" amount="₦20,996,08" quantity="92" unit="Liters" />
-          </div>
-
-
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <TransactionSummaryCard
-              icon={<Dollar />}
-              iconBg="bg-red-50"
-              label="Total Income"
-              subtext="Income for the last 6 months"
-              value="₦194,250,0.05"
-              trendValue="23.7%"
-              trendDirection="up"
-            />
-
-            <TransactionSummaryCard
-              icon={<Dollar />}
-              iconBg="bg-red-50"
-              label="Total Cash back"
-              subtext="Transactions for the last 6 months"
-              value="₦50,134,40.97"
-              trendValue="12.3%"
-              trendDirection="up"
-            />
-
-            <TransactionSummaryCard
-              icon={<Sales className='text-primary' />}
-              iconBg="bg-red-50"
-              label="Number of sales"
-              subtext="Total numbers of sales/transactions"
-              value="22,500"
-              trendValue="1.6%"
-              trendDirection="down"
-            />
-          </div>
-
-          <div className="rounded-xl border bg-white p-4">
-            <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="font-medium">Transaction History</h2>
-                <p className="text-xs text-gray-400">View and manage all fuel and service transactions across stations.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <FilterDropdown options={['All Transactions', 'PMS', 'DPK', 'LPG', 'HNK']} value={typeFilter} onChange={setTypeFilter} />
-                <FilterDropdown options={['All Status', 'Completed', 'Pending']} value={statusFilter} onChange={setStatusFilter} />
-                <FilterDropdown options={['Last 30 Days', 'Last 7 Days', 'Today']} value={dateFilter} onChange={setDateFilter} />
-              </div>
-            </div>
-
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  placeholder="Search with Ref/Transaction number here"
-                  className="w-full rounded-lg border bg-gray-50 py-2 pl-9 text-sm outline-none"
-                />
-              </div>
-              <button className="text-sm font-medium text-primary">See all</button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <TransactionTable transactions={transactions} onRowClick={handleRowClick} />
-            </div>
-
-            <div className="mt-4">
-              <Pagination currentPage={page} totalPages={979} totalItems={4892} itemsPerPage={5} onPageChange={setPage} />
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border bg-white p-4 lg:col-span-2">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-medium">Overview</h2>
-                <p className="text-xs text-gray-400">View and manage all fuel and service transactions across stations.</p>
-              </div>
-              <FilterDropdown options={['Today', 'This Week', 'This Month']} value="Today" onChange={() => { }} />
-            </div>
-
-            <div className="relative mb-4 w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                placeholder="Search with Station ID / location here"
-                className="w-full rounded-lg border bg-gray-50 py-2 pl-9 text-sm outline-none"
-              />
-            </div>
-
-            <StationTransactionTable
-              rows={stationRows}
-              onRowClick={(row) => { setSelectedStation(row); setStationModalOpen(true) }}
-            />
-
-            <StationDetailModal
-              open={stationModalOpen}
-              onOpenChange={setStationModalOpen}
-              station={selectedStation ? stationDetailData : null}
-            />
-          </div>
-
-          <BestSellingStation stations={bestSelling} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            value={searchText} onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search with Ref/Transaction number here"
+            className="w-full rounded-lg border bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none"
+          />
         </div>
-      )}
+        <FilterDropdown options={['All Status', 'Completed', 'Pending', 'Failed']} value={statusFilter} onChange={setStatusFilter} />
+      </div>
 
-      <TransactionDetailModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        transaction={
-          selected && {
-            ...selected,
-            stationLocation: 'SAO - 21182, Ibadan Oyo State.',
-            managerName: 'Oluwagbotemi Babatunde',
-            sessionId: '34254559402851',
-            liters: '10.5 liters',
-            costPerLiter: '₦1206',
-            cashback: '₦12',
-            location: 'Akobo branch, Ibadan',
-          }
-        }
-      />
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
+        <div className="no-scrollbar h-[600px] overflow-y-auto rounded-xl border bg-white lg:col-span-4">
+          <AsyncPanel state={{ data: list.pages, error: list.error, retry: list.retry }} height="h-48">
+            {() => (
+              <>
+                {rows.map((t) => {
+                  const s = STATUS_STYLE[t.status]
+                  const isSelected = t.id === selected?.id
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedId(t.id)}
+                      className={cn(
+                        'flex w-full items-center justify-between border-l-4 border-b border-gray-50 p-4 text-left text-sm',
+                        isSelected ? cn(s.border, s.bgSelected) : 'border-l-transparent hover:bg-gray-50'
+                      )}
+                    >
+                      {t.ref}
+                    </button>
+                  )
+                })}
+                {rows.length === 0 && (
+                  <p className="p-6 text-center text-sm text-gray-400">No transactions match your search.</p>
+                )}
+                {list.hasMore && (
+                  <button type="button" onClick={list.loadMore} disabled={list.loadingMore}
+                    className="w-full p-4 text-sm font-medium text-red-500 hover:bg-gray-50 disabled:opacity-50">
+                    {list.loadingMore ? 'Loading...' : 'Load more'}
+                  </button>
+                )}
+              </>
+            )}
+          </AsyncPanel>
+        </div>
+
+        <div className="no-scrollbar h-[600px] overflow-y-auto rounded-xl border bg-white p-5 lg:col-span-8">
+          {selected ? (
+            <AsyncPanel state={panelState} height="h-64">
+              {(txn) => <TransactionDetailPanel txn={txn} />}
+            </AsyncPanel>
+          ) : (
+            <p className="p-6 text-center text-sm text-gray-400">Select a transaction to view details.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

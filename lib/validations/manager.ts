@@ -1,20 +1,13 @@
-// lib/validations/manager.ts
 import { z } from 'zod'
-import { emailField, passwordField, confirmPasswordRefinement } from './fields'
-import { nigerianPhoneField } from './fields'
+import { isNigerianPhone } from './phone'
 
-export const addManagerSchema = z
-  .object({
-    fullName: z.string().min(3, 'Full name is required'),
-    managerId: z.string().min(1, 'Manager ID is required'),
-    phone: nigerianPhoneField,
-    email: emailField,
-    homeAddress: z.string().min(5, 'Address is required'),
-    assignedStation: z.string().min(1, 'Select a station'),
-    role: z.string().min(1, 'Select a role'),
-    password: passwordField,
-    confirmPassword: passwordField,
-  })
-  .superRefine(confirmPasswordRefinement)
+export const addManagerSchema = z.object({
+  full_name: z.string().trim().min(2, 'Enter the full name'),
+  email: z.string().trim().email('Enter a valid email address'),
+  phone: z.string().trim().refine(isNigerianPhone, 'Enter a valid Nigerian phone number'),
+  home_address: z.string().trim(),
+  station_id: z.string().min(1, 'Select a station'),
+  level: z.string().min(1, 'Select a level'),
+})
 
 export type AddManagerFormValues = z.infer<typeof addManagerSchema>

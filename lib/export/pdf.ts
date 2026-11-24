@@ -3,13 +3,32 @@ import autoTable from 'jspdf-autotable'
 import type { ExportColumn } from './types'
 import { getValue, safeFormat } from './utils'
 
-export function downloadPdf<T>(
+let fontBase64: string | null = null
+
+async function loadFont(): Promise<string> {
+  if (fontBase64) return fontBase64
+  const res = await fetch('/fonts/NotoSans-Regular.ttf')
+  if (!res.ok) throw new Error('Could not load PDF font')
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  // convert in chunks: spreading the whole array at once overflows the call stack
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  fontBase64 = btoa(binary)
+  return fontBase64
+}
+
+export async function downloadPdf<T>(
   filename: string,
   data: T[],
   columns: ExportColumn<T>[],
   title?: string
-): void {
+): Promise<void> {
   const doc = new jsPDF()
+  doc.addFileToVFS('NotoSans-Regular.ttf', await loadFont())
+  doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal')
+  doc.setFont('NotoSans')
 
   if (title) {
     doc.setFontSize(14)
@@ -25,8 +44,8 @@ export function downloadPdf<T>(
     head,
     body,
     startY: title ? 22 : 12,
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [185, 28, 28] }, // matches your brand red
+    styles: { font: 'NotoSans', fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [185, 28, 28], fontStyle: 'normal' },
     alternateRowStyles: { fillColor: [250, 250, 250] },
   })
 

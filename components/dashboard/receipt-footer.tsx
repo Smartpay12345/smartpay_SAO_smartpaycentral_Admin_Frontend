@@ -19,17 +19,17 @@ interface ReceiptFooterProps {
 
 export function ReceiptFooter({ onShare, onDownload, sharing, downloading }: ReceiptFooterProps) {
   return (
-    <div className="flex flex-col items-center justify-between gap-3 border-t bg-red-50/40 px-5 py-3 sm:flex-row">
+    <div className="flex flex-col items-center justify-between gap-3 border-t bg-[#E6BDB9] px-5 py-3 sm:flex-row">
       <p className="text-xs text-gray-400">Powered by smartpay</p>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onShare} disabled={sharing}>
+        <Button variant="secondary" size="sm" onClick={onShare} disabled={sharing}>
           {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="mr-1.5 h-4 w-4" />}
           Share
         </Button>
    <DropdownMenu>
   <DropdownMenuTrigger
     render={
-      <Button size="sm" disabled={downloading !== null}>
+      <Button size="sm" disabled={downloading !== null} className="bg-[#B8001D]">
         {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Download'}
       </Button>
     }

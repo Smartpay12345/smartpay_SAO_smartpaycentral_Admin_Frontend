@@ -3,125 +3,143 @@
 import { useState } from 'react'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { SalesOverviewHeader } from '@/components/dashboard/sales-overview-header'
-import { SalesByProductType, type ProductTypeDatum } from '@/components/dashboard/sales-by-product-type'
-import { PeakSalesHours, type PeakHourDatum } from '@/components/dashboard/peak-sales-hours'
-import { SalesPerformanceChart, type SalesPerformanceDatum } from '@/components/dashboard/sales-performance-chart'
+import { SalesByProductType} from '@/components/dashboard/sales-by-product-type'
+import { PeakSalesHours} from '@/components/dashboard/peak-sales-hours'
 import { formatCurrencyFull } from '@/lib/utils/format'
-import { Liter, Trans, Tsales, Circle, ArrowDown, ArrowUp, RoundedArr } from '@/components/icons'
+import { Liter, Trans, Tsales, Circle, ArrowDown, ArrowUp, Fire, Iconpetrol, RedD, Tank,} from '@/components/icons'
+import { ProductStatCard } from '@/components/dashboard/transactions/product-stat-card'
+import { AsyncPanel } from '@/lib/dashboard/async-panel'
+import { ReactNode } from 'react'
+import { useEndpoint } from '@/hooks/use-endpoint'
+import { getSalesOverview, getPeakHours } from '@/lib/dashboard/api'
+import { formatNumber, formatChange, comparisonLabel } from '@/lib/dashboard/format'
+import type { StandardPeriodKey } from '@/lib/dashboard/period'
+import { type SalesPeriodKey } from '@/lib/dashboard/sales-periods'
 
 
-const productTypeData: ProductTypeDatum[] = [
-  { name: 'PMS', fullName: 'PMS (Petrol)', value: 297_800_000, color: '#B91C1C' },
-  { name: 'DPK', fullName: 'DPK (Kerosene)', value: 91_600_000, color: '#2563EB' },
-  { name: 'LPG', fullName: 'LPG (Gas)', value: 45_800_000, color: '#F59E0B' },
-  { name: 'HNK', fullName: 'HNK (Diesel)', value: 22_900_000, color: '#10B981' },
-]
 
-const peakHoursData: PeakHourDatum[] = [
-  { hour: '6am', value: 20, isPeak: false },
-  { hour: '9am', value: 35, isPeak: false },
-  { hour: '12pm', value: 95, isPeak: true },
-  { hour: '3pm', value: 78, isPeak: true },
-  { hour: '6pm', value: 30, isPeak: false },
-  { hour: '9pm', value: 22, isPeak: false },
-  { hour: '12am', value: 62, isPeak: true },
-  { hour: '3am', value: 18, isPeak: false },
-]
+// colour and icon follow the product code, so labels can come straight from the API
+const PRODUCT_COLOR: Record<string, string> = { PMS: '#B91C1C', DPK: '#2563EB', LPG: '#F59E0B', AGO: '#10B981' }
+const PRODUCT_VISUAL: Record<string, { icon: ReactNode; bg: string }> = {
+  PMS: { icon: <Iconpetrol />, bg: 'bg-red-50' },
+  AGO: { icon: <RedD />, bg: 'bg-blue-50' },
+  DPK: { icon: <Tank />, bg: 'bg-blue-50' },
+  LPG: { icon: <Fire />, bg: 'bg-blue-50' },
+}
 
-const salesPerformanceData: SalesPerformanceDatum[] = [
-  { month: 'Jan', date: '2026-01-15', value: 22_000_000, volume: 40_000 },
-  { month: 'Feb', date: '2026-02-15', value: 30_000_000, volume: 55_000 },
-  { month: 'Mar', date: '2026-03-15', value: 52_000_000, volume: 70_000 },
-  { month: 'Apr', date: '2026-04-15', value: 40_000_000, volume: 62_000 },
-  { month: 'May', date: '2026-05-15', value: 25_000_000, volume: 90_000 },
-  { month: 'Jun', date: '2026-06-15', value: 30_000_000, volume: 110_000 },
-  { month: 'Jul', date: '2026-07-15', value: 60_000_000, volume: 95_000 },
-  { month: 'Aug', date: '2026-08-15', value: 84_200_000, volume: 120_000 },
-  { month: 'Sep', date: '2026-09-15', value: 45_000_000, volume: 100_000 },
-  { month: 'Oct', date: '2026-10-15', value: 30_000_000, volume: 130_000 },
-  { month: 'Nov', date: '2026-11-15', value: 42_000_000, volume: 150_000 },
-  { month: 'Dec', date: '2026-12-15', value: 60_000_000, volume: 170_000 },
-]
+// change_percent -> props for StatCard's trend. null shows "-", never 0%
+function trendProps(pct: number | null, label: string) {
+  const c = formatChange(pct)
+  return {
+    icon: c.direction === 'none' ? undefined : c.direction === 'up' ? <ArrowUp /> : <ArrowDown />,
+    changeValue: c.text,
+    changeValueColor: c.direction === 'up' ? 'text-green-600' : c.direction === 'down' ? 'text-red-600' : 'text-gray-400',
+    changeLabel: label,
+    changeLabelColor: 'text-gray-400',
+  }
+}
+
 
 export default function SalesOverviewPage() {
-  const [period, setPeriod] = useState('This Month')
+const [period, setPeriod] = useState<SalesPeriodKey>('today')
+const vs = comparisonLabel(period as StandardPeriodKey) ?? ''
 
-  function handleExport() {
-    // TODO: wire to your report export endpoint
-    console.log('Export report for', period)
-  }
+const overview = useEndpoint('sales-overview', period, () => getSalesOverview(period), { keepPrevious: false })
+const peak = useEndpoint('sales-peak-hours', period, () => getPeakHours(period), { keepPrevious: false })
+
+// one row per product, plus a total row
+const exportRows = overview.data && [
+  ...overview.data.products.map((p) => ({
+    code: p.code, name: p.name, sales: p.sales, quantity: p.quantity,
+    unit: p.unit, transactions: p.transactions, share: p.share_percent,
+  })),
+  {
+    code: 'TOTAL', name: 'All products', sales: overview.data.total_sales.amount,
+    quantity: null, unit: '', transactions: overview.data.transactions.count, share: null,
+  },
+]
 
   return (
-    <div className="space-y-6">
-      <SalesOverviewHeader
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        onExport={handleExport}
-      />
+    <div className="space-y-6 bg-white p-6 border rounded-lg">
+      <SalesOverviewHeader selectedPeriod={period} onPeriodChange={setPeriod} exportRows={exportRows} />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {/* top cards */}
+      <AsyncPanel state={overview} height="h-28">
+        {(d) => (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <StatCard
+              icon={<Tsales className="h-5 w-5 text-primary" />}
+              iconBgColor="bg-pink-50"
+              label="Total Sales"
+              value={formatCurrencyFull(d.total_sales.amount)}
+              trend={trendProps(d.total_sales.change_percent, vs)}
+            />
+            <StatCard
+              icon={<Liter className="h-5 w-5 text-primary" />}
+              iconBgColor="bg-blue-50"
+              label="Total Liters Sold"
+              value={`${formatNumber(d.litres_sold.litres)} L`}
+              trend={trendProps(d.litres_sold.change_percent, vs)}
+            />
+            <StatCard
+              icon={<Trans className="h-5 w-5 text-primary" />}
+              iconBgColor="bg-green-50"
+              label="Transaction Counts"
+              value={formatNumber(d.transactions.count)}
+              trend={trendProps(d.transactions.change_percent, vs)}
+            />
+            <StatCard
+              icon={<Circle className="h-5 w-5 text-primary" />}
+              iconBgColor="bg-[#FCDBD8]"
+              label="Sales Growth"
+              value={formatChange(d.sales_growth.change_percent).text}
+            />
+          </div>
+        )}
+      </AsyncPanel>
 
-
-        <StatCard
-          icon={<Tsales className="h-5 w-5 text-primary" />}
-          iconBgColor="bg-pink-50"
-          label="Total Sales"
-          value={formatCurrencyFull(458_250_000)}
-          trend={{
-            icon: <ArrowUp />,
-            changeValue: '+90.8%',
-            changeValueColor: 'text-green-600',
-            changeLabel: 'vs last week',
-            changeLabelColor: 'text-gray-400 ml-0.5',
-          }}
-        />
-        <StatCard
-          icon={<Liter className="h-5 w-5 text-primary" />}
-          iconBgColor="bg-blue-50"
-          label="Total Liters Sold"
-          value="685,420 L"
-          trend={{
-            icon: <ArrowUp />,
-            changeValue: '+90.8%',
-            changeValueColor: 'text-green-600 ml-0.5',
-            changeLabel: 'vs last week',
-            changeLabelColor: 'text-gray-400',
-          }}
-        />
-        <StatCard
-          icon={<Trans className="h-5 w-5 text-primary" />}
-          iconBgColor="bg-green-50"
-          label="Transaction Counts"
-          value="12,450"
-          trend={{
-            icon: <ArrowDown />,
-            changeValue: '+90.8%',
-            changeValueColor: 'text-red-600 ml-0.5',
-            changeLabel: 'vs last week',
-            changeLabelColor: 'text-gray-400',
-          }}
-        />
-        <StatCard
-          icon={<Circle className="h-5 w-5 text-primary" />}
-          iconBgColor="bg-[#FCDBD8]"
-          label="Sales Growth"
-          value="+14.2%"
-          trend={{
-            icon: <RoundedArr />,
-            changeValue: 'on track for',
-            changeValueColor: 'text-green-600 ml-0.5',
-            changeLabel: 'Q3 target',
-            changeLabelColor: 'text-gray-400',
-          }}
-        />
-      </div>
+      {/* product cards */}
+      <AsyncPanel state={overview} height="h-28">
+        {(d) => (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+            {d.products.map((p) => (
+              <ProductStatCard
+                key={p.code}
+                icon={PRODUCT_VISUAL[p.code].icon}
+                iconBg={PRODUCT_VISUAL[p.code].bg}
+                name={p.code}
+                subtitle={p.name}
+                amount={formatCurrencyFull(p.sales)}
+                quantity={formatNumber(p.quantity)}
+                unit={p.unit === 'kg' ? 'Kilograms' : 'Liters'}
+              />
+            ))}
+          </div>
+        )}
+      </AsyncPanel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SalesByProductType data={productTypeData} />
-        <PeakSalesHours data={peakHoursData} />
-      </div>
+        <AsyncPanel state={overview} title="Sales by Product Type">
+          {(d) => (
+            <SalesByProductType
+              data={d.products.map((p) => ({
+                name: p.code,
+                fullName: `${p.code} (${p.name})`,
+                value: p.sales,
+                color: PRODUCT_COLOR[p.code],
+              }))}
+            />
+          )}
+        </AsyncPanel>
 
-      <SalesPerformanceChart data={salesPerformanceData} />
+        <AsyncPanel state={peak} title="Peak Sales Hours">
+          {(d) => (
+            <PeakSalesHours
+              data={d.slots.map((s) => ({ hour: s.label, value: s.sales, isPeak: s.is_peak }))}
+            />
+          )}
+        </AsyncPanel>
+      </div>
     </div>
   )
 }

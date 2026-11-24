@@ -1,6 +1,7 @@
 // components/confirm-modal.tsx
 'use client'
-
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,15 +17,15 @@ interface ConfirmModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
-  description: string
-  onConfirm: () => void
+  description: string,
+  onConfirm: () => void | Promise<void> ,
   confirmText?: string
   isDestructive?: boolean
-  // new, all optional — existing callers (e.g. inventory delete) are unaffected
   headerLabel?: string
   icon?: React.ReactNode
   stackButtons?: boolean
-  showBrandFooter?: boolean
+  showBrandFooter?: boolean,
+  loadingText?: string
 }
 
 export function ConfirmModal({
@@ -34,19 +35,41 @@ export function ConfirmModal({
   description,
   onConfirm,
   confirmText = 'Confirm',
+  loadingText = 'Please wait…',
   isDestructive = false,
   headerLabel,
   icon,
   stackButtons = false,
-  showBrandFooter = false,
+  showBrandFooter = false,            // new, optional
 }: ConfirmModalProps) {
+
+  const [pending, setPending] = useState(false)
+
+  async function handleConfirm(e: React.MouseEvent) {
+  e.preventDefault()
+  if (pending) return
+  setPending(true)
+  try {
+    await onConfirm()
+    onOpenChange(false)
+  } catch {
+    // the caller shows its own error; the dialog stays open so the user can retry
+  } finally {
+    setPending(false)
+  }
+}
+
+function handleOpenChange(next: boolean) {
+  if (!next && pending) return // no closing mid-request: outside click, Esc, Cancel
+  onOpenChange(next)
+}
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+   <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="gap-0 overflow-hidden p-0">
         {headerLabel && (
           <div className="flex items-center justify-between bg-red-50/60 px-5 py-3">
             <span className="text-xs font-semibold tracking-wide text-gray-600">{headerLabel}</span>
-            <button onClick={() => onOpenChange(false)} className="rounded-full p-1 hover:bg-white/60">
+           <button onClick={() => handleOpenChange(false)} disabled={pending} className="rounded-full p-1 hover:bg-white/60 disabled:opacity-50">
               <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
                 <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
@@ -70,15 +93,23 @@ export function ConfirmModal({
 
           <AlertDialogFooter className={stackButtons ? 'mt-5 flex-col gap-2 sm:flex-col' : 'mt-5'}>
             <AlertDialogAction
-              onClick={onConfirm}
+             onClick={handleConfirm}
+  disabled={pending}
               className={
                 (isDestructive ? 'bg-destructive text-primary-foreground hover:bg-destructive/90 ' : '') +
                 (stackButtons ? 'w-full' : '')
               }
             >
-              {confirmText}
+               {pending ? (
+    <>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      {loadingText}
+    </>
+  ) : (
+    confirmText
+  )}
             </AlertDialogAction>
-            <AlertDialogCancel className={stackButtons ? 'w-full' : undefined}>Cancel</AlertDialogCancel>
+           <AlertDialogCancel disabled={pending} className={stackButtons ? 'w-full' : undefined}>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
         </div>
 
